@@ -1,102 +1,95 @@
 #pragma once
 #include <cstdint>
 
-using UCHAR     = uint8_t;
-using USHORT    = uint16_t;
-using ULONG     = uint32_t;
+using UCHAR    = uint8_t;
+using USHORT   = uint16_t;
+using ULONG    = uint32_t;
+using WCHAR    = uint16_t;
+using LONGLONG = int64_t;
 using ULONGLONG = uint64_t;
-using WCHAR     = uint16_t;
+using ATTRIBUTE_TYPE_CODE = ULONG;
+using VCN = LONGLONG;
 
 #pragma pack(push, 1)
 namespace windows {
 
-// ------------------------------------------------------------
-// MULTI_SECTOR_HEADER (Part of FILE_RECORD_SEGMENT_HEADER)
-typedef struct MULTI_SECTOR_HEADER {
+// -- MFT file record sector header
+typedef struct _MULTI_SECTOR_HEADER {
     UCHAR  Signature[4];         // "FILE"
     USHORT UpdateSequenceOffset;
     USHORT UpdateSequenceSize;
 } MULTI_SECTOR_HEADER, *PMULTI_SECTOR_HEADER;
 
-// ------------------------------------------------------------
-// MFT_SEGMENT_REFERENCE
-typedef struct MFT_SEGMENT_REFERENCE {
+// -- Used in MFT file record reference fields
+typedef struct _MFT_SEGMENT_REFERENCE {
     ULONG  SegmentNumberLowPart;
     USHORT SegmentNumberHighPart;
     USHORT SequenceNumber;
 } MFT_SEGMENT_REFERENCE, *PMFT_SEGMENT_REFERENCE;
 
-// ------------------------------------------------------------
-// FILE_RECORD_SEGMENT_HEADER
-typedef struct FILE_RECORD_SEGMENT_HEADER {
-    MULTI_SECTOR_HEADER MultiSectorHeader;
+typedef MFT_SEGMENT_REFERENCE FILE_REFERENCE, *PFILE_REFERENCE;
+typedef USHORT UPDATE_SEQUENCE_NUMBER;
+typedef UPDATE_SEQUENCE_NUMBER UPDATE_SEQUENCE_ARRAY[1];
 
-    ULONGLONG LogFileSequenceNumber;
-    USHORT SequenceNumber;
-    USHORT HardLinkCount;
-    USHORT FirstAttributeOffset;
-    USHORT Flags;
-    ULONG  UsedSizeOfTheMFTEntry;
-    ULONG  AllocatedSizeOfTheMFTEntry;
-    MFT_SEGMENT_REFERENCE BaseFileRecordSegment;
-    USHORT NextAttributeId;
-    USHORT Padding;           // Alignment padding
-    ULONG  MFTRecordNumber;
-    // Followed by Update Sequence Array
+// -- Core MFT file record header
+typedef struct _FILE_RECORD_SEGMENT_HEADER {
+    MULTI_SECTOR_HEADER   MultiSectorHeader;
+    ULONGLONG             Reserved1;
+    USHORT                SequenceNumber;
+    USHORT                Reserved2;
+    USHORT                FirstAttributeOffset;
+    USHORT                Flags;
+    ULONG                 Reserved3[2];
+    FILE_REFERENCE        BaseFileRecordSegment;
+    USHORT                Reserved4;
+    UPDATE_SEQUENCE_ARRAY UpdateSequenceArray;
 } FILE_RECORD_SEGMENT_HEADER, *PFILE_RECORD_SEGMENT_HEADER;
 
-// ------------------------------------------------------------
-// ATTRIBUTE_RECORD_HEADER (Header for all attributes)
-typedef struct ATTRIBUTE_RECORD_HEADER {
-    ULONG  TypeCode;
-    ULONG  RecordLength;
-    UCHAR  FormCode;          // 0 = resident, 1 = non-resident
-    UCHAR  NameLength;
-    USHORT NameOffset;
-    USHORT Flags;             // e.g., 0x0001 = compressed
-    USHORT Instance;
+// -- Header for any attribute (e.g., $STANDARD_INFORMATION, $FILE_NAME, $DATA)
+typedef struct _ATTRIBUTE_RECORD_HEADER {
+    ATTRIBUTE_TYPE_CODE   TypeCode;
+    ULONG                 RecordLength;
+    UCHAR                 FormCode;          // 0 = resident, 1 = non-resident
+    UCHAR                 NameLength;
+    USHORT                NameOffset;
+    USHORT                Flags;
+    USHORT                Instance;
 
     union {
-        // Resident attribute
         struct {
             ULONG  ValueLength;
             USHORT ValueOffset;
-            UCHAR  ResidentFlags;
-            UCHAR  Reserved;
+            UCHAR  Reserved[2];
         } Resident;
 
-        // Non-resident attribute
         struct {
-            ULONGLONG LowestVCN;
-            ULONGLONG HighestVCN;
-            USHORT MappingPairsOffset;
-            UCHAR  CompressionUnit;
-            UCHAR  Reserved[5];
-            ULONGLONG AllocatedLength;
-            ULONGLONG FileSize;
-            ULONGLONG ValidDataLength;
-            ULONGLONG TotalAllocated;  // Optional
+            VCN       LowestVCN;
+            VCN       HighestVCN;
+            USHORT    MappingPairsOffset;
+            UCHAR     Reserved[6];
+            LONGLONG  AllocatedLength;
+            LONGLONG  FileSize;
+            LONGLONG  ValidDataLength;
+            LONGLONG  TotalAllocated;  // Optional
         } NonResident;
     };
 } ATTRIBUTE_RECORD_HEADER, *PATTRIBUTE_RECORD_HEADER;
 
-// ------------------------------------------------------------
-// STANDARD_INFORMATION (Attribute Type 0x10)
-typedef struct STANDARD_INFORMATION {
-    ULONGLONG CreationTime;
-    ULONGLONG FileAlteredTime;
+// -- $STANDARD_INFORMATION attribute (type 0x10)
+typedef struct _STANDARD_INFORMATION {
+    LONGLONG  CreationTime;
+    LONGLONG  FileAlteredTime;
     ULONGLONG MFTChangedTime;
     ULONGLONG FileReadTime;
     ULONG     FileAttributes;
     ULONG     MaximumVersions;
     ULONG     VersionNumber;
     ULONG     ClassId;
-    // Fields in NTFS 3.0+: OwnerId, SecurityId, QuotaCharged, USN...
+    // Optionally more fields in NTFS 3.0+
 } STANDARD_INFORMATION, *PSTANDARD_INFORMATION;
 
-// ------------------------------------------------------------
-// FILE_NAME (Attribute Type 0x30)
-typedef struct FILE_NAME_ATTRIBUTE {
+// -- $FILE_NAME attribute (type 0x30)
+typedef struct _FILE_NAME_ATTRIBUTE {
     MFT_SEGMENT_REFERENCE ParentDirectory;
     ULONGLONG CreationTime;
     ULONGLONG FileAlteredTime;
@@ -107,27 +100,13 @@ typedef struct FILE_NAME_ATTRIBUTE {
     ULONG     Flags;
     ULONG     Reparse;
     UCHAR     FilenameLength;     // In WCHARs
-    UCHAR     FilenameNamespace;  // 0 = POSIX, 1 = Win32, etc.
+    UCHAR     FilenameNamespace;
     WCHAR     Filename[1];        // Variable-length UTF-16LE
 } FILE_NAME_ATTRIBUTE, *PFILE_NAME_ATTRIBUTE;
 
-// ------------------------------------------------------------
-// ATTRIBUTE_LIST_ENTRY (Optional for overflown attributes)
-typedef struct ATTRIBUTE_LIST_ENTRY {
-    ULONG  AttributeTypeCode;
-    USHORT RecordLength;
-    UCHAR  NameLength;
-    UCHAR  NameOffset;
-    ULONGLONG LowestVCN;
-    MFT_SEGMENT_REFERENCE SegmentReference;
-    USHORT Instance;
-    WCHAR  Name[1];               // Variable-length
-} ATTRIBUTE_LIST_ENTRY, *PATTRIBUTE_LIST_ENTRY;
-
-// ------------------------------------------------------------
-// ATTRIBUTE TYPE END MARKER
+// -- Marks end of attribute list
 inline constexpr ULONG ATTRIBUTE_TYPE_END = 0xFFFFFFFF;
 
-} 
+}
 #pragma pack(pop)
 

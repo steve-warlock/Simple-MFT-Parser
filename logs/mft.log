@@ -1,4 +1,0 @@
-[2025-07-05 13:51:38][WARN](MFTParser::MFTParser) the output path ./output/output.json does not exists. Creating it now!
-[2025-07-05 13:51:38][DEBUG](MFTParser::MFTParser) Output path ./output/output.json has been created successfully!
-[2025-07-05 13:51:38][DEBUG] (MFTParser::MFTParser) Constructor successfully initialized!
-[2025-07-05 13:51:38][DEBUG] (MFTParser::~MFTParser) Destructor successfully called!
