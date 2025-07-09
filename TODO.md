@@ -12,3 +12,13 @@
                       => utils/logger.hpp for the logging to see everything is going alright
                       => utils/json_converter.hpp for the json convertor
     - src folder => the implementation of all the hpp files
+    
+    - the whole strcuture of the class mft_parser is: 
+        -- public functions
+            -- mft_parser constructor with filepath and outputpath
+            -- mft_parser destructor
+            -- void parse which will call private helper functions
+        -- private functions
+            -- bool checkHeaderValidity(mft::mft_entry& entry);
+            -- readEntry(std::fstream& read, mft::mft_entry& entry);
+            -- getHeaderInfo(mft::mft_entry& entry, json& entryJson);

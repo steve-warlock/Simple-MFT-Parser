@@ -12,11 +12,22 @@ namespace parser {
 
 class MFTParser {
 private:
+  const static std::size_t chunkSize = 1024;
   std::string filePath;
   std::string outputPath;
   logger::Logger parserLogger;
-  json mftEntry;
-public:
+  mft::mft_entry* entry;
+  std::fstream read;
+  std::fstream write;
+  json MFTEntry;
+  void readEntry(std::fstream& read);
+  void getHeaderInfo(mft::mft_entry& entry, json& entryJson);
+
+  inline bool checkValidityHeader(mft::mft_entry& entry) { 
+    return memcmp(entry.header() -> MultiSectorHeader.Signature, "FILE", 4) == 0;
+  };
+
+  public:
   MFTParser(std::string& filePath, std::string& outputPath);
   ~MFTParser();
   void parse();  
